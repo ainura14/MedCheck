@@ -13,80 +13,81 @@ import java.util.List;
 public class DepartmentDaoImpl implements DepartmentService {
 
     public List<Hospital> getAllHospitals(){
-        if(DataBase.hospitals.isEmpty()){
-            throw new NullPointerException();
-        }
-        return DataBase.hospitals;
+        return DataBase.hospitals.stream()
+                .findFirst()
+                .map(hospital -> DataBase.hospitals)
+                .orElseThrow(NullPointerException::new);
     }
     @Override
     public List<Department> getAllDepartmentByHospital(Long id) {
-        for (Hospital hospital : getAllHospitals()) { // catch
-            if(hospital.getId().equals(id)){
-                return new ArrayList<>(hospital.getDepartments());
-            }
-        }
-        return new ArrayList<>();
+        return DataBase.hospitals.stream()
+                .filter(hospital -> hospital.getId().equals(id))
+                .findFirst()
+                .map(hospital -> new ArrayList<>(hospital.getDepartments()))
+                .orElse(new ArrayList<>());
     }
 
     @Override
     public Department findDepartmentByName(String name) {
-        for (Hospital hospital :  getAllHospitals()) { // catch
-            if(hospital.getDepartments() != null) {
-                for (Department department : hospital.getDepartments()) {
-                    if (department.getDepartmentName() != null && department.getDepartmentName().equals(name)) {
-                        return department;
-                    }
-                }
-            }
-        }
-        throw new DepartmentNotFoundException("Don't find the department"); // catch DepartmentNotFound
+        return getAllHospitals().stream()
+                .flatMap(hospital -> hospital.getDepartments().stream())
+                .filter(department -> department.getDepartmentName() != null && department.getDepartmentName().equals(name))
+                .findFirst()
+                .orElseThrow(() -> new DepartmentNotFoundException("Don't find the department"));
     }
 
 
     @Override
     public String add(Long hospitalId, Department department) {
-        for (Hospital hospital :  getAllHospitals()){ //catch
-            if(hospital.getId().equals(hospitalId)){
-                List<Department> departments = hospital.getDepartments();
-                if(departments == null){
-                    departments = new ArrayList<>();
-                }
-                departments.add(department);
-                hospital.setDepartments(departments);
-                return "Successfully added new department to hospital with ID " + hospitalId;
-            }
-        }
-        return "We can't find the hospital with ID " + hospitalId + " to add the new department.";
+        return getAllHospitals().stream()
+                .filter(hospital -> hospital.getId().equals(hospitalId))
+                .findFirst()
+                .map(hospital -> {
+                    List<Department> departments = hospital.getDepartments();
+                    if(departments == null){
+                        departments = new ArrayList<>();
+                    }
+                    departments.add(department);
+                    hospital.setDepartments(departments);
+                    return "Successfully added new department to hospital with ID " + hospitalId;
+                })
+                .orElse("We can't find the hospital with ID " + hospitalId + " to add the new department.");
     }
 
     @Override
     public void removeById(Long id) {
-        for (Hospital hospital : DataBase.hospitals) {
-            if(hospital.getDepartments() != null) {
-                for (Department department : hospital.getDepartments()) {
-                    if (department.getId().equals(id)) {
-                        hospital.getDepartments().remove(department);
-                        System.out.println("Successfully deleted.");
-                        return;
-                    }
-                }
-            }
+        boolean removed = getAllHospitals().stream()
+                .filter(hospital -> hospital.getDepartments() != null)
+                .flatMap(hospital -> hospital.getDepartments().stream())
+                .filter(department -> department.getId().equals(id))
+                .findFirst()
+                .map(department -> {
+                    getAllHospitals().forEach(hospital -> {
+                        if(hospital.getDepartments() != null){
+                            hospital.getDepartments().remove(department);
+                        }
+                    });
+                    return true;
+                })
+                .orElse(false);
+        if(removed){
+            System.out.println("Successfully deleted.");
+        }else{
+            System.out.println("We can't find the department to delete.");
         }
-        System.out.println("We can't find the department to deleted.");
     }
 
     @Override
     public String updateById(Long id, Department department) {
-        for (Hospital hospital : DataBase.hospitals) {
-            if(hospital.getDepartments() != null) {
-                for (Department hospitalDepartment : hospital.getDepartments()) {
-                    if (hospitalDepartment.getId().equals(id)) {
-                        hospitalDepartment.setDepartmentName(department.getDepartmentName());
-                        return "Successfully updated.";
-                    }
-                }
-            }
-        }
-        return "We can't update.";
+        return getAllHospitals().stream()
+                .filter(hospital -> hospital.getDepartments() != null)
+                .flatMap(hospital -> hospital.getDepartments().stream())
+                .filter(department1 -> department1.getId().equals(id))
+                .findFirst()
+                .map(department1 -> {
+                    department1.setDepartmentName(department.getDepartmentName());
+                    return "Successfully updated.";
+                })
+                .orElse("We can't update.");
     }
 }

@@ -4,70 +4,65 @@ import dao.HospitalDao;
 import db.DataBase;
 import model.Hospital;
 import model.Patient;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.NoSuchElementException;
+
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class HospitalDaoImpl implements HospitalDao {
     @Override
     public String addHospital(Hospital hospital) {
+        boolean exists = DataBase.hospitals.stream()
+                        .anyMatch(hospital1 -> hospital1.getId().equals(hospital.getId()));
+        if(exists){
+            return "Hospital with ID " + hospital.getId() + " already exists.";
+        }
         DataBase.hospitals.add(hospital);
-        System.out.println(hospital);
+        System.out.println("Hospital added " + hospital);
         return "Successfully added.";
     }
 
     @Override
     public Hospital findHospitalById(Long id) {
-        List<Hospital> hospitals = getAllHospital();
-        for (Hospital hospital : hospitals) {
-            if (hospital.getId().equals(id)) {
-                return hospital;
-            }
-        }
-        throw new NoSuchElementException();
+        return getAllHospital().stream()
+                .filter(hospital -> hospital.getId().equals(id))
+                .findFirst()
+                .orElseThrow(() -> new NoSuchElementException("Hospital not found with ID: " + id));
     }
 
     @Override
     public List<Hospital> getAllHospital() {
-        if (DataBase.hospitals.isEmpty()) throw new NullPointerException("");
         return DataBase.hospitals;
     }
 
     @Override
     public List<Patient> getAllPatientFromHospital(Long id) {
-        try {
-            return findHospitalById(id).getPatients();
-        }catch (NullPointerException e){
-            System.out.println("The are no patient in hospital." + e.getMessage());
-        }
-        return null;
+        return getAllHospital().stream()
+                .filter(hospital -> hospital.getId().equals(id))
+                .map(Hospital::getPatients)
+                .filter(patients -> patients != null && !patients.isEmpty())
+                .findFirst()
+                .orElse(new ArrayList<>());
     }
 
     @Override
     public String deleteHospitalById(Long id) {
-        Hospital hospitalById = findHospitalById(id);
-        if (hospitalById != null) {
-            DataBase.hospitals.remove(hospitalById);
-        } else {
-            return "We can't find this hospital " + id;
-        }
+        boolean removed = DataBase.hospitals.removeIf(hospital -> hospital.getId().equals(id));
 
-        return "Successfully deleted.";
+        if (removed) {
+            return "Successfully deleted.";
+        } else {
+            return "We can't find the hospital with ID " + id;
+        }
     }
+
 
     @Override
     public Map<String, Hospital> getAllHospitalByAddress(String address) {
-        List<Hospital> allHospital = getAllHospital();
-        Map<String, Hospital> result = new HashMap<>();
-        for (Hospital hospital : allHospital) {
-            if (hospital.getAddress().equals(address)) {
-                result.put("The hospital", hospital);
-            }
-        }
-        if (result != null) {
-            return result;
-        }
-        return null;
+        return getAllHospital().stream()
+                .filter(hospital -> hospital.getAddress().equals(address))
+                .collect(Collectors.toMap(
+                        hospital -> "The hospital",
+                        hospital -> hospital
+                ));
     }
 }

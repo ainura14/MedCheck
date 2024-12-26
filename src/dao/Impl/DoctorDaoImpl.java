@@ -8,128 +8,114 @@ import service.DoctorService;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class DoctorDaoImpl implements DoctorService {
     @Override
     public Doctor findDoctorById(Long id) {
-        for (Hospital hospital : DataBase.hospitals) {
-            if(hospital.getDoctors() != null){
-                for (Doctor doctor : hospital.getDoctors()) {
-                    if(doctor.getId().equals(id)){
-                        return doctor;
-                    }
-                }
-            }
-        }
-        return null;
+        return DataBase.hospitals.stream()
+                .filter(hospital -> hospital.getDoctors() != null)
+                .flatMap(hospital -> hospital.getDoctors().stream())
+                .filter(doctor -> doctor.getId().equals(id))
+                .findFirst()
+                .orElse(null);
     }
 
     @Override
     public String assignDoctorToDepartment(Long departmentId, List<Long> doctorsId) {
-        List<Doctor> doctors = new ArrayList<>();
-        for (Hospital hospital : DataBase.hospitals) {
-            if(hospital.getDepartments() != null) {
-                for (Department department : hospital.getDepartments()) {
-                    if(department.getId().equals(departmentId)){
-                        if(hospital.getDoctors() != null){
-                            for (Doctor doctor : hospital.getDoctors()) {
-                                for (Long l : doctorsId) {
-                                    if(doctor.getId().equals(l)){
-                                        doctors.add(doctor);
-                                        System.out.println(doctor);
-                                    }
-                                }
-                            }
-                        }
-                        department.setDoctors(doctors);
-                    }
-                }
-                return "Successfully assigned.";
-            }
-        }
-        return "Don't assigned to department.";
+        return DataBase.hospitals.stream()
+                .filter(hospital -> hospital.getDepartments() != null)
+                .flatMap(hospital -> hospital.getDepartments().stream())
+                .filter(department -> department.getId().equals(departmentId))
+                .findFirst()
+                .map(department -> {
+                    List<Doctor> doctorsToAssign = DataBase.hospitals.stream()
+                            .filter(hospital -> hospital.getDoctors() != null)
+                            .flatMap(hospital -> hospital.getDoctors().stream())
+                            .filter(doctor -> doctorsId.contains(doctor.getId()))
+                            .collect(Collectors.toList());
+                    department.setDoctors(doctorsToAssign);
+                    return "Successfully assigned.";
+                })
+                .orElse("Don't assigned to department.");
     }
 
     @Override
     public List<Doctor> getAllDoctorsByHospitalId(Long id) {
-        List<Doctor> doctors = new ArrayList<>();
-        for (Hospital hospital : DataBase.hospitals) {
-            if(hospital.getId().equals(id)){
-                if(hospital.getDoctors() != null) {
-                    doctors.addAll(hospital.getDoctors());
-                    return doctors;
-                }
-            }
-        }
-        return null;
+        return DataBase.hospitals.stream()
+                .filter(hospital -> hospital.getId().equals(id))
+                .map(hospital -> hospital.getDoctors())
+                .filter(doctors -> doctors != null)
+                .findFirst()
+                .orElse(null);
     }
 
     @Override
     public List<Doctor> getAllDoctorsByDepartmentId(Long id) {
-        for (Hospital hospital : DataBase.hospitals) {
-            if(hospital.getDepartments() != null){
-                for (Department department : hospital.getDepartments()) {
-                    if(department.getId().equals(id)){
-                        if(department.getDoctors() != null){
-                            return new ArrayList<>(department.getDoctors());
-                        }
-                    }
-                }
-            }
-        }
-        return null;
+        return DataBase.hospitals.stream()
+                .filter(hospital -> hospital.getDepartments() != null)
+                .flatMap(hospital -> hospital.getDepartments().stream())
+                .filter(department -> department.getId().equals(id))
+                .map(department -> department.getDoctors())
+                .filter(doctors -> doctors != null)
+                .findFirst()
+                .orElse(null);
     }
 
     @Override
     public String add(Long hospitalId, Doctor doctor) {
-        for (Hospital hospital : DataBase.hospitals) {
-            if(hospital.getId().equals(hospitalId)){
-                List<Doctor> doctors = new ArrayList<>();
-                doctors.add(doctor);
-                System.out.println(doctor);
-                hospital.setDoctors(doctors);
-            }
-        }
-        return "Successfully added.";
+        boolean found = DataBase.hospitals.stream()
+                .filter(hospital -> hospital.getId().equals(hospitalId))
+                .peek(hospital -> {
+                    if(hospital.getDoctors() == null){
+                        hospital.setDoctors((new ArrayList<>()));
+                    }
+                    hospital.getDoctors().add(doctor);
+                    System.out.println(doctor);
+                })
+                .findFirst()
+                .isPresent();
+        return found ? "Successfully added." : "Hospital with ID " + hospitalId + " not found.";
     }
 
     @Override
     public void removeById(Long id) {
-        boolean isCheck = false;
-        for (Hospital hospital : DataBase.hospitals) {
-            if(hospital.getDoctors() != null){
-                for (Doctor doctor : hospital.getDoctors()) {
-                    if(doctor.getId().equals(id)){
-                        hospital.getDoctors().remove(doctor);
-                        System.out.println("Successfully removed.");
-                        isCheck = true;
-                        return;
-                    }
-                }
-            }
-        }
-        if(!isCheck){
+        boolean isRemoved = DataBase.hospitals.stream()
+                .filter(hospital -> hospital.getDoctors() != null)
+                .flatMap(hospital -> hospital.getDoctors().stream())
+                .filter(doctor -> doctor.getId().equals(id))
+                .findFirst()
+                .map(doctor -> {
+                    DataBase.hospitals.forEach(hospital -> {
+                        if(hospital.getDoctors() != null){
+                            hospital.getDoctors().remove(doctor);
+                        }
+                    });
+                    return true;
+                })
+                .orElse(false);
+        if (isRemoved) {
+            System.out.println("Successfully removed.");
+        } else {
             System.out.println("Don't removed the doctor.");
         }
     }
 
     @Override
     public String updateById(Long id, Doctor doctor) {
-        for (Hospital hospital : DataBase.hospitals) {
-            if(hospital.getDoctors() != null){
-                for (Doctor d : hospital.getDoctors()) {
-                    if(d.getId().equals(id)){
-                        d.setExperienceYear(doctor.getExperienceYear());
-                        d.setFirstName(doctor.getFirstName());
-                        d.setGender(doctor.getGender());
-                        d.setLastName(doctor.getLastName());
-                        System.out.println(d);
-                        return "Successfully updated.";
-                    }
-                }
-            }
-        }
-        return "Can't updated the doctor info";
+        boolean isUpdated = DataBase.hospitals.stream()
+                .filter(hospital -> hospital.getDoctors() != null)
+                .flatMap(hospital -> hospital.getDoctors().stream())
+                .filter(doctor1 -> doctor1.getId().equals(id))
+                .peek(doctor1 -> {
+                    doctor1.setFirstName(doctor.getFirstName());
+                    doctor1.setLastName(doctor.getLastName());
+                    doctor1.setGender(doctor.getGender());
+                    doctor1.setExperienceYear(doctor.getExperienceYear());
+                })
+                .findFirst()
+                .isPresent();
+        return isUpdated ? "Successfully updated." : "Can't update the doctor info.";
     }
 
 }
